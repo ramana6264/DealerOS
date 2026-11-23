@@ -1,0 +1,12 @@
+{
+  "name": "dealeros",
+  "version": "1.0.0",
+  "description": "This is a Django and SQLite reconciliation app. It imports both ledgers without dropping dirty rows, compares System B with System A's `total_value`, and exposes tenant-filtered disagreement data at `/api/disagreements/?org=ORG-A`.",
+  "license": "ISC",
+  "author": "",
+  "type": "commonjs",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  }
+}

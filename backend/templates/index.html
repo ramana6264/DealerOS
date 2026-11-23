@@ -1,0 +1,162 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>DealerOS reconciliation</title>
+  <style>
+    :root { color-scheme: light; font-family: system-ui, -apple-system, sans-serif; }
+    body { max-width: 1100px; margin: 2rem auto; padding: 0 1rem; color: #172033; }
+    h1 { margin-bottom: 1.25rem; }
+    .filters { display: flex; flex-wrap: wrap; gap: 1rem; align-items: end; margin-bottom: 1rem; }
+    label { display: grid; gap: .35rem; font-weight: 600; }
+    select, button { min-height: 38px; border: 1px solid #aab2bf; border-radius: 5px; background: white; color: inherit; }
+    select { min-width: 180px; padding: .45rem .65rem; }
+    .table-wrap { overflow-x: auto; border: 1px solid #d8dde5; border-radius: 6px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { border-bottom: 1px solid #e7eaf0; padding: .65rem .75rem; text-align: left; white-space: nowrap; }
+    th { background: #f5f7fa; }
+    tbody tr:last-child td { border-bottom: 0; }
+    tbody tr:hover { background: #fafbfc; }
+    #value-header { cursor: pointer; user-select: none; }
+    #status, #empty { min-height: 1.5rem; color: #556070; }
+    #empty { text-align: center; padding: 2rem 0; }
+    [hidden] { display: none !important; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>DealerOS disagreements</h1>
+    <div class="filters">
+      <label for="org">Organization
+        <select id="org">
+          <option value="ORG-A">ORG-A</option>
+          <option value="ORG-B">ORG-B</option>
+        </select>
+      </label>
+      <label for="reason">Reason
+        <select id="reason">
+          <option value="">All reasons</option>
+        </select>
+      </label>
+    </div>
+
+    <p id="status" role="status" aria-live="polite"></p>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Reason</th>
+            <th>Record ID</th>
+            <th>Location</th>
+            <th id="value-header" tabindex="0" role="button" aria-sort="ascending">Value ▲</th>
+            <th>System A value</th>
+            <th>System B value</th>
+            <th>Difference</th>
+          </tr>
+        </thead>
+        <tbody id="rows"></tbody>
+      </table>
+    </div>
+    <p id="empty" hidden>No disagreements found.</p>
+  </main>
+
+  <script>
+    const reasons = [
+      "MISSING_IN_B",
+      "ORPHAN_IN_B",
+      "DUPLICATE_IN_B",
+      "VALUE_MISMATCH",
+      "LOCATION_MISMATCH",
+      "DATE_MISMATCH"
+    ];
+    const orgSelect = document.querySelector("#org");
+    const reasonSelect = document.querySelector("#reason");
+    const valueHeader = document.querySelector("#value-header");
+    const rowsElement = document.querySelector("#rows");
+    const statusElement = document.querySelector("#status");
+    const emptyElement = document.querySelector("#empty");
+
+    reasons.forEach(reason => {
+      reasonSelect.add(new Option(reason, reason));
+    });
+
+    let descending = false;
+
+    function displayText(value) {
+      return value === null || value === undefined || value === "" ? "" : String(value);
+    }
+
+    function difference(aValue, bValue) {
+      if (aValue === null || aValue === undefined || bValue === null || bValue === undefined) {
+        return "";
+      }
+      const differenceValue = Number(aValue) - Number(bValue);
+      return Number.isFinite(differenceValue) ? differenceValue.toFixed(2) : "";
+    }
+
+    function appendCell(row, value) {
+      const cell = document.createElement("td");
+      cell.textContent = displayText(value);
+      row.appendChild(cell);
+    }
+
+    async function load() {
+      const params = new URLSearchParams({ org: orgSelect.value });
+      if (reasonSelect.value) {
+        params.set("reason", reasonSelect.value);
+      }
+      params.set("sort", descending ? "-value" : "value");
+
+      statusElement.textContent = "Loading disagreements...";
+      emptyElement.hidden = true;
+      rowsElement.replaceChildren();
+
+      try {
+        const response = await fetch(`/api/disagreements/?${params}`);
+        if (!response.ok) {
+          throw new Error(`Request failed with status ${response.status}`);
+        }
+        const data = await response.json();
+
+        data.forEach(item => {
+          const row = document.createElement("tr");
+          appendCell(row, item.reason);
+          appendCell(row, item.record_id);
+          appendCell(row, item.location);
+          appendCell(row, item.a_value ?? item.b_value);
+          appendCell(row, item.a_value);
+          appendCell(row, item.b_value);
+          appendCell(row, difference(item.a_value, item.b_value));
+          rowsElement.appendChild(row);
+        });
+
+        emptyElement.hidden = data.length !== 0;
+        statusElement.textContent = `${data.length} disagreement${data.length === 1 ? "" : "s"} for ${orgSelect.value}`;
+      } catch (error) {
+        statusElement.textContent = "Unable to load disagreements.";
+        console.error(error);
+      }
+    }
+
+    function toggleValueSort() {
+      descending = !descending;
+      valueHeader.textContent = descending ? "Value ▼" : "Value ▲";
+      valueHeader.setAttribute("aria-sort", descending ? "descending" : "ascending");
+      load();
+    }
+
+    orgSelect.addEventListener("change", load);
+    reasonSelect.addEventListener("change", load);
+    valueHeader.addEventListener("click", toggleValueSort);
+    valueHeader.addEventListener("keydown", event => {
+      if (event.key === "Enter" || event.key === " ") {
+        event.preventDefault();
+        toggleValueSort();
+      }
+    });
+
+    load();
+  </script>
+</body>
+</html>
