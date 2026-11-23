@@ -2,3 +2,7 @@ Django>=5.0,<7.0
 django-cors-headers>=4.0,<5.0
 pytest>=8.0,<9.0
 pytest-django>=4.8,<5.0
+gunicorn
+psycopg[binary]
+dj-database-url
+whitenoise
